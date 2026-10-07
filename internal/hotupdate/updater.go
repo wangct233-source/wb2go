@@ -44,6 +44,10 @@ type Updater struct {
 	AssetHint  string // 期望的产物名关键字，默认取当前二进制名
 
 	client *http.Client
+	// downloadTimeout 是单个产物下载的硬上限。
+	// 国内服务器到 GitHub 对象存储常只有几十 KB/s，7.5MB 需要
+	// 数分钟 —— 120 秒必然超时，放宽到 10 分钟。
+	downloadTimeout time.Duration
 
 	mu       sync.Mutex
 	latest   string
@@ -55,8 +59,26 @@ type Updater struct {
 func New(repo, currentVer, mirror string) *Updater {
 	return &Updater{
 		Repo: repo, CurrentVer: currentVer, Mirror: mirror,
-		client: &http.Client{Timeout: 120 * time.Second},
+		client:          &http.Client{Timeout: 10 * time.Minute},
+		downloadTimeout: 10 * time.Minute,
 	}
+}
+
+// assetDownloadURL 返回产物实际下载地址：配置了 mirror 时包一层加速前缀。
+//
+// mirror 形如 "https://ghfast.top/"，拼接后为
+// "https://ghfast.top/https://github.com/owner/repo/releases/download/..."。
+// mirror 由服务器主人在配置文件里设置 —— 配置文件权限等同主机权限，
+// 因此信任 mirror 前缀不构成额外攻击面。
+func (u *Updater) assetDownloadURL(raw string) string {
+	m := strings.TrimSpace(u.Mirror)
+	if m == "" {
+		return raw
+	}
+	if !strings.HasPrefix(m, "https://") {
+		return raw // 非 https 的 mirror 一律忽略，防降级
+	}
+	return strings.TrimRight(m, "/") + "/" + raw
 }
 
 // Info 是一次检查的结果。字段带 JSON tag 以便面板直接透传。
@@ -200,10 +222,15 @@ func (u *Updater) Apply(ctx context.Context) (string, error) {
 
 // downloadAndReplace 下载并替换二进制。
 func (u *Updater) downloadAndReplace(ctx context.Context, info *Info, exe string) (string, error) {
-	if !isTrustedURL(info.AssetURL) {
-		return "", fmt.Errorf("拒绝从非官方地址下载：%s", info.AssetURL)
+	dlURL := u.assetDownloadURL(info.AssetURL)
+	// 校验"最终下载地址"的 host：直连时是官方域；走 mirror 时 mirror 前缀
+	// 由服务器主人配置，同样要求 https。
+	if !isTrustedURL(dlURL) {
+		return "", fmt.Errorf("拒绝从非官方地址下载：%s", dlURL)
 	}
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, info.AssetURL, nil)
+	dlCtx, cancel := context.WithTimeout(ctx, u.downloadTimeout)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(dlCtx, http.MethodGet, dlURL, nil)
 	req.Header.Set("User-Agent", "wb2go/"+u.CurrentVer)
 	resp, err := u.client.Do(req)
 	if err != nil {

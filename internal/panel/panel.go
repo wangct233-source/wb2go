@@ -691,10 +691,18 @@ func (s *Server) apiUpdateCheck(w http.ResponseWriter, r *http.Request) {
 		fail(w, err.Error())
 		return
 	}
-	// 热更新实现返回的结构原样透传，前端按字段名读取
-	m, _ := info.(map[string]any)
-	if m == nil {
-		m = map[string]any{}
+	// 实现返回的是 *Info 结构体。早前在这里断言 map[string]any 失败后
+	// 塞了空 map，导致 current/latest 全部变 null —— marshal roundtrip
+	// 是结构体 → JSON 的正确透传方式（Info 字段都带 json tag）。
+	raw, mErr := json.Marshal(info)
+	if mErr != nil {
+		fail(w, "序列化检查结果失败: "+mErr.Error())
+		return
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		fail(w, "解析检查结果失败: "+err.Error())
+		return
 	}
 	m["success"] = true
 	writeJSON(w, http.StatusOK, m)
