@@ -1,0 +1,135 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: vet
+        run: go vet ./...
+
+      - name: test
+        run: go test ./...
+
+      - name: build
+        run: go build ./...
+
+  release:
+    # 打 tag 时构建各平台产物并创建 Release —— 面板的热更新直接从这里拉
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: 提取版本号
+        id: ver
+        run: echo "ver=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: 构建各平台产物
+        run: |
+          set -euo pipefail
+          VER="${{ steps.ver.outputs.ver }}"
+          LDFLAGS="-s -w -X main.Version=${VER}"
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 windows/amd64 darwin/amd64 darwin/arm64; do
+            GOOS="${target%/*}" GOARCH="${target#*/}" CGO_ENABLED=0 \
+              go build -trimpath -ldflags="$LDFLAGS" -o "dist/wb2go-${target%/*}-${target#*/}" ./cmd/wb2go
+            # Windows 加 .exe 后缀（后面的 zip 里靠扩展名识别）
+            if [ "$GOOS" = "windows" ]; then
+              mv "dist/wb2go-windows-amd64" "dist/wb2go-windows-amd64.exe"
+            fi
+          done
+          # 打 zip：Windows 用户双击即用，Linux/macOS 保留可执行位
+          cd dist
+          for f in wb2go-*; do
+            if [ "${f##*.}" = "exe" ]; then
+              zip -q "${f%.exe}.zip" "$f"
+            else
+              tar -czf "${f}.tar.gz" "$f"
+            fi
+          done
+
+      - name: 校验产物含版本号
+        # 防止交叉编译时编错目录树 —— 曾经真的发生过：
+        # 编译了另一个分支的代码，打出来的包却标着当前版本号。
+        run: |
+          set -euo pipefail
+          grep -qa "${{ steps.ver.outputs.ver }}" dist/wb2go-linux-amd64 \
+            || { echo "产物里找不到版本号，构建目录可能不对"; exit 1; }
+          echo "版本号已嵌入产物"
+
+      - name: 上传产物
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/*.tar.gz
+          generate_release_notes: true
+
+  docker:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ github.sha }}

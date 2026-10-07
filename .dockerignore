@@ -1,0 +1,12 @@
+.git
+.gitignore
+.smoke/
+dist/
+data/
+accounts/
+*.md
+*.exe
+wb2go
+Dockerfile
+docker-compose.yml
+.github/

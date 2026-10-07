@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>wb2go 控制台</title>
+<link rel="stylesheet" href="/panel/app.css">
+<script>
+// 首屏防闪：必须在样式应用前定好主题，否则会闪一下白底
+(function () {
+  var t = localStorage.getItem('wb2go-theme');
+  if (t !== 'dark' && t !== 'light') {
+    t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+</head>
+<body>
+<div id="toast" class="toast">
+  <div class="toast-title" id="toast-title">完成</div>
+  <div class="toast-body" id="toast-body"></div>
+</div>
+
+<!-- 打赏弹窗：默认隐藏，点侧栏「打赏」才显示 -->
+<div class="modal-mask" id="reward-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="reward-title">
+    <div class="modal-head">
+      <span class="modal-title" id="reward-title">请作者喝杯咖啡</span>
+      <button class="icon-btn" id="btn-reward-close" type="button" aria-label="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="modal-note">
+      本项目完全开源免费。如果你觉得它省了你的时间，可以请我喝杯咖啡 —— 这是自愿的，不给也完全不影响使用。
+    </p>
+    <div class="reward-tabs" role="tablist">
+      <button class="reward-tab active" data-src="/panel/reward-qr.webp" data-label="微信赞赏码" type="button">微信</button>
+      <button class="reward-tab" data-src="/panel/reward-alipay.webp" data-label="支付宝收款码" type="button">支付宝</button>
+    </div>
+    <div class="reward-body">
+      <img id="reward-img" src="/panel/reward-qr.webp" alt="赞赏码" width="260" height="260">
+    </div>
+    <div class="modal-foot">
+      <span id="reward-label">微信赞赏码</span>
+      <span class="modal-tip">长按 / 截图保存后扫码</span>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#0b100d"/>
+          <rect x="0.5" y="0.5" width="63" height="63" rx="13.5" stroke="#22c55e"/>
+          <path d="M20 22h24M32 22v22" stroke="#22c55e" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="32" cy="46" r="5" fill="#22c55e"/>
+        </svg>
+      </div>
+      <div class="brand-block">
+        <h1>wb2go</h1>
+        <div class="brand-sub">WorkBuddy 兼容网关</div>
+      </div>
+    </div>
+
+    <nav class="nav-list" role="tablist">
+      <button class="nav-item active" data-tab="overview" data-title="概览">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        概览
+      </button>
+      <button class="nav-item" data-tab="accounts" data-title="账号与任务">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
+        账号与任务
+      </button>
+      <button class="nav-item" data-tab="models" data-title="模型">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+        模型
+      </button>
+      <button class="nav-item" data-tab="usage" data-title="用量">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="8"/><rect x="12" y="6" width="3" height="12"/></svg>
+        用量
+      </button>
+      <button class="nav-item" data-tab="scheduler" data-title="调度">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        调度
+      </button>
+      <button class="nav-item" data-tab="settings" data-title="设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="18" r="2"/></svg>
+        设置
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <a class="foot-link" href="https://qm.qq.com/q/xHtxPNo5qM" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"/></svg>
+        <span>交流群 539858079</span>
+      </a>
+      <a class="foot-link" href="https://github.com/wangct233-source" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 22v-4a4.3 4.3 0 0 0-1.1-3.3c3 0 6.2-1.5 6.2-6.7A5.2 5.2 0 0 0 18.7 4 4.9 4.9 0 0 0 18.6.5S17.5 0 15 2a13.4 13.4 0 0 0-6 0C6.5 0 5.4.5 5.4.5A4.9 4.9 0 0 0 5.3 4a5.2 5.2 0 0 0-1.4 3.7c0 5.2 3.2 6.7 6.2 6.7a4.3 4.3 0 0 0-1.1 3.3V22"/><path d="M9 19c-3 .9-3-1.5-4.2-2"/></svg>
+        <span>作者主页</span>
+      </a>
+      <button class="foot-link" id="btn-reward" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>
+        <span>打赏</span>
+      </button>
+      <div class="foot-meta">当前版本 <span id="foot-version">·</span> · MIT</div>
+      <div class="foot-meta foot-open">完全开源免费 · 收费的都是骗子</div>
+      <div class="foot-copy">© 2026 · 智云-wangct233</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <h2 id="page-title">概览</h2>
+      <div class="topbar-right">
+        <span class="chip" id="chip-service"><span class="chip-key">服务</span><code>—</code></span>
+        <span class="chip chip-user" id="chip-accounts"><span class="chip-key">账号</span><code>—</code></span>
+        <div class="segmented" id="realm-switch" role="radiogroup" aria-label="出口区域">
+          <label title="国内版 copilot.tencent.com"><input type="radio" name="realm-top" value="cn"><span>🇨🇳 国内版</span></label>
+          <label title="国际版 www.workbuddy.ai"><input type="radio" name="realm-top" value="intl"><span>🌐 国际版</span></label>
+        </div>
+        <span class="chip" id="chip-identity"><span class="chip-key">身份</span><code>—</code></span>
+        <label class="theme-switch" title="切换明暗主题">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--warn)"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <span class="switch"><input type="checkbox" id="theme-toggle"><span class="track"></span></span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--muted)"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </label>
+        <!-- 移动端侧栏底部会折叠成顶栏，打赏入口放这里保证可达 -->
+        <button class="btn btn-secondary btn-sm foot-mobile-only" id="btn-reward-top" type="button" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>
+          打赏
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ========== 概览 ========== -->
+      <section class="tab-page active" data-page="overview">
+        <div class="panel-stack">
+          <dl class="stats stats-6">
+            <div class="stat"><dt>累计 Token</dt><dd id="ov-total">--</dd><dd class="stat-sub" id="ov-total-sub">--</dd></div>
+            <div class="stat"><dt>累计输入</dt><dd id="ov-input">--</dd><dd class="stat-sub" id="ov-input-sub">--</dd></div>
+            <div class="stat"><dt>累计输出</dt><dd id="ov-output">--</dd><dd class="stat-sub" id="ov-output-sub">--</dd></div>
+            <div class="stat"><dt>累计缓存</dt><dd id="ov-cache">--</dd><dd class="stat-sub" id="ov-cache-sub">--</dd></div>
+            <div class="stat"><dt>今日 Token</dt><dd id="ov-today">--</dd><dd class="stat-sub" id="ov-today-sub">--</dd></div>
+            <div class="stat"><dt>可用账号</dt><dd id="ov-accounts">--</dd><dd class="stat-sub" id="ov-accounts-sub">--</dd></div>
+          </dl>
+
+          <div id="ov-msg" class="msg"></div>
+
+          <div class="ov-grid">
+            <section class="panel-card">
+              <div class="section-head">
+                <span class="section-title" id="ov-chart-title">每日 Token 用量</span>
+                <div class="segmented" role="radiogroup">
+                  <label><input type="radio" name="ov-range" value="7"><span>7 天</span></label>
+                  <label><input type="radio" name="ov-range" value="14" checked><span>14 天</span></label>
+                  <label><input type="radio" name="ov-range" value="30"><span>30 天</span></label>
+                </div>
+              </div>
+              <div class="chart-readout" id="ov-readout">
+                <span class="readout-date" id="ov-readout-date">选择某天查看明细</span>
+              </div>
+              <div class="chart-wrap">
+                <div class="chart-y" aria-hidden="true"><span id="ov-y-max">0</span><span id="ov-y-mid">0</span><span>0</span></div>
+                <div class="chart" id="ov-chart" role="group" aria-label="每日 Token 柱状图"></div>
+                <div class="chart-axis" id="ov-axis" aria-hidden="true"></div>
+              </div>
+            </section>
+
+            <section class="panel-card">
+              <div class="section-head"><span class="section-title">服务状态</span></div>
+              <dl class="kv-list">
+                <div><dt>版本</dt><dd id="ov-version">—</dd></div>
+                <div><dt>运行时长</dt><dd id="ov-uptime">—</dd></div>
+                <div><dt>可用 / 总数</dt><dd id="ov-healthy">—</dd></div>
+                <div><dt>在途请求</dt><dd id="ov-inflight">—</dd></div>
+                <div><dt>粘性会话</dt><dd id="ov-sticky">—</dd></div>
+                <div><dt>区域分布</dt><dd id="ov-realms">—</dd></div>
+                <div><dt>默认出口</dt><dd id="ov-region">—</dd></div>
+                <div><dt>出站身份</dt><dd id="ov-identity">—</dd></div>
+                <div><dt>WAF 拦截</dt><dd id="ov-waf">—</dd></div>
+              </dl>
+            </section>
+          </div>
+
+          <section class="panel-card">
+            <div class="section-head">
+              <span class="section-title">按日汇总</span>
+              <label class="inline-check"><input type="checkbox" id="ov-hide-empty"> 隐藏无请求日期</label>
+            </div>
+            <div class="table-wrap">
+              <table class="data" id="ov-days-table" style="min-width:680px">
+                <thead><tr><th>日期</th><th class="num">请求</th><th class="num">失败</th><th class="num">输入</th><th class="num">输出</th><th class="num">缓存</th><th class="num">总计</th><th class="num">积分</th></tr></thead>
+                <tbody id="ov-days-body"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ========== 账号与任务 ========== -->
+      <section class="tab-page" data-page="accounts">
+        <div class="panel-stack">
+          <dl class="stats">
+            <div class="stat"><dt>账号总数</dt><dd id="acct-total">--</dd><dd class="stat-sub" id="acct-total-sub">—</dd></div>
+            <div class="stat"><dt>当前可用</dt><dd id="acct-healthy">--</dd><dd class="stat-sub" id="acct-healthy-sub">—</dd></div>
+            <div class="stat"><dt>积分合计</dt><dd id="acct-credits">--</dd><dd class="stat-sub" id="acct-credits-sub">—</dd></div>
+            <div class="stat"><dt>粘性会话</dt><dd id="acct-sticky">--</dd><dd class="stat-sub" id="acct-sticky-sub">—</dd></div>
+          </dl>
+
+          <section class="panel-card">
+            <div class="section-head">
+              <span class="section-title">账号列表</span>
+              <div class="toolbar">
+                <div class="segmented" id="realm-filter" role="radiogroup" aria-label="按区域筛选">
+                  <label><input type="radio" name="realm-filter" value=""><span>全部</span></label>
+                  <label><input type="radio" name="realm-filter" value="cn"><span>🇨🇳 国内</span></label>
+                  <label><input type="radio" name="realm-filter" value="intl"><span>🌐 国际</span></label>
+                </div>
+                <span class="busy-indicator" id="acct-busy">处理中</span>
+                <button class="btn btn-secondary btn-sm" id="btn-refresh-all">刷新全部状态</button>
+                <button class="btn btn-primary btn-sm" id="btn-credits-all">查询全部积分</button>
+                <button class="btn btn-secondary btn-sm" id="btn-checkin-all">一键签到</button>
+                <button class="btn btn-secondary btn-sm" id="btn-travel-all">旅行巡检</button>
+                <button class="btn btn-secondary btn-sm" id="btn-tasks-all">成长任务</button>
+                <button class="btn btn-secondary btn-sm" id="btn-keepalive-all">全部保活</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data" id="acct-table" style="min-width:900px">
+                <thead><tr>
+                  <th>账号</th><th>区域</th><th>状态</th><th class="num">积分</th>
+                  <th>冷却剩余</th><th>身份</th><th class="num">在途</th><th>操作</th>
+                </tr></thead>
+                <tbody id="acct-body"></tbody>
+              </table>
+            </div>
+            <div class="empty-state" id="acct-empty" hidden>还没有账号。到「添加账号」页用浏览器完成 OAuth 授权即可。</div>
+            <div class="msg" id="acct-msg"></div>
+          </section>
+
+          <div class="panel-grid cols-2">
+            <section class="panel-card">
+              <div class="section-head"><span class="section-title">添加账号</span></div>
+              <ol class="login-steps" style="padding-left:18px;font-size:12px;line-height:1.8;color:var(--muted)">
+                <li>点下方按钮，浏览器打开官方授权页</li>
+                <li>完成登录授权（需登录你的账号）</li>
+                <li>回到本页，凭据自动落盘并<b>热加载进池</b>，无需重启</li>
+              </ol>
+              <div class="field-label" style="margin-top:4px">选择要登录的区域</div>
+              <div class="segmented" id="realm-switch-login" role="radiogroup" aria-label="登录区域">
+                <label><input type="radio" name="realm-login" value="cn" checked><span>🇨🇳 国内版</span></label>
+                <label><input type="radio" name="realm-login" value="intl"><span>🌐 国际版</span></label>
+              </div>
+              <div class="field-note" id="realm-note" style="margin-top:6px"></div>
+              <div class="btn-group">
+                <button class="btn btn-primary" id="btn-oauth">浏览器 OAuth 授权登录</button>
+              </div>
+              <div class="loading" id="oauth-loading" hidden style="font-size:12px;color:var(--muted);margin-top:8px">正在等待授权…</div>
+              <div class="msg" id="oauth-msg"></div>
+              <details style="margin-top:14px">
+                <summary style="cursor:pointer;font-size:13px;color:var(--muted)">手动粘贴凭证（备用）</summary>
+                <div class="form-row" style="margin-top:10px">
+                  <div class="form-group span-2"><label>UID <span class="required">*</span></label><input id="m-uid" class="mono" placeholder="账号 uid"></div>
+                  <div class="form-group span-2"><label>Access Token <span class="required">*</span></label><textarea id="m-token" placeholder="accessToken"></textarea></div>
+                  <div class="form-group"><label>Refresh Token</label><textarea id="m-refresh"></textarea></div>
+                  <div class="form-group"><label>区域</label><select id="m-realm"><option value="cn">国内版</option><option value="intl">国际版</option></select></div>
+                </div>
+                <div class="btn-group"><button class="btn btn-secondary" id="btn-manual">保存账号</button></div>
+                <div class="msg" id="manual-msg"></div>
+              </details>
+            </section>
+
+            <section class="panel-card">
+              <div class="section-head"><span class="section-title">OAuth 授权状态</span><span class="state-pill" id="oauth-state">未发起</span></div>
+              <div class="field-note" style="margin-bottom:10px">
+                授权链接有效期约 5 分钟。生成后请在浏览器中完成登录，超时需重新生成。
+              </div>
+              <dl class="kv-list">
+                <div><dt>当前授权链接</dt><dd id="oauth-url" style="font-size:11px">—</dd></div>
+                <div><dt>等待中的账号</dt><dd id="oauth-pending">0</dd></div>
+              </dl>
+              <div class="msg" id="oauth-poll-msg"></div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== 模型 ========== -->
+      <section class="tab-page" data-page="models">
+        <div class="panel-stack">
+          <section class="panel-card">
+            <div class="section-head">
+              <span class="section-title">模型列表</span>
+              <button class="btn btn-secondary btn-sm" id="btn-models-refresh">刷新</button>
+            </div>
+            <p class="section-desc">
+              模型表按官方桌面端宣告对齐，已剔除代码补全专用与底层专线变体。
+              倍率 0 表示免费档。
+            </p>
+            <div class="table-wrap">
+              <table class="data" style="min-width:820px">
+                <thead><tr>
+                  <th>模型 ID</th><th>显示名</th><th>区域</th><th class="num">上下文</th>
+                  <th class="num">最大输出</th><th>能力</th><th class="num">积分倍率</th>
+                </tr></thead>
+                <tbody id="models-body"></tbody>
+              </table>
+            </div>
+            <div class="msg" id="models-msg"></div>
+          </section>
+
+          <section class="panel-card">
+            <div class="section-head"><span class="section-title">连通性测试</span><span class="section-meta" id="test-summary">未运行</span></div>
+            <div class="form-row">
+              <div class="form-group"><label>模型 ID</label><input id="t-model" placeholder="glm-5.2"></div>
+              <div class="form-group"><label>思考档位</label><select id="t-effort"><option value="">默认</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></div>
+              <div class="form-group"><label>超时（秒）</label><input id="t-timeout" type="number" value="90" min="15" max="300"></div>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-primary btn-sm" id="btn-test">开始测试</button>
+              <button class="btn btn-ghost btn-sm" id="btn-test-preset">填入常用模型</button>
+            </div>
+            <div class="table-wrap" id="test-table-wrap" hidden style="margin-top:12px">
+              <table class="data" style="min-width:640px">
+                <thead><tr><th>模型</th><th>结果</th><th class="num">耗时</th><th>详情</th></tr></thead>
+                <tbody id="test-body"></tbody>
+              </table>
+            </div>
+            <div class="msg" id="test-msg"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ========== 用量 ========== -->
+      <section class="tab-page" data-page="usage">
+        <section class="panel-card">
+          <div class="section-head">
+            <span class="section-title">最近请求</span>
+            <div class="segmented" role="radiogroup" id="usage-range">
+              <label><input type="radio" name="urange" value="today"><span>今天</span></label>
+              <label><input type="radio" name="urange" value="7d" checked><span>近 7 天</span></label>
+              <label><input type="radio" name="urange" value="30d"><span>近 30 天</span></label>
+              <label><input type="radio" name="urange" value="all"><span>全部</span></label>
+            </div>
+          </div>
+          <div class="table-wrap" style="max-height:calc(100vh - 260px);overflow-y:auto">
+            <table class="data" style="min-width:860px">
+              <thead><tr>
+                <th>时间</th><th>模型</th><th>账号</th><th>出口</th>
+                <th class="num">Token</th><th class="num">耗时</th><th>结果</th><th>请求 ID</th>
+              </tr></thead>
+              <tbody id="usage-body"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="usage-empty" hidden>暂无请求记录</div>
+          <div class="msg" id="usage-msg"></div>
+        </section>
+      </section>
+
+      <!-- ========== 调度 ========== -->
+      <section class="tab-page" data-page="scheduler">
+        <div class="panel-stack">
+          <section class="panel-card">
+            <div class="section-head"><span class="section-title">定时任务</span><span class="section-meta" id="sched-server-time">—</span></div>
+            <p class="section-desc">
+              任务按整点触发（本地时区）。同一任务同一小时内只跑一次；
+              「立即执行」会跳过等待直接触发。
+            </p>
+            <div class="table-wrap">
+              <table class="data" style="min-width:760px">
+                <thead><tr><th>任务</th><th>说明</th><th class="num">今日运行</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody id="sched-body"></tbody>
+              </table>
+            </div>
+            <div class="msg" id="sched-msg"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ========== 设置 ========== -->
+      <section class="tab-page" data-page="settings">
+        <div class="panel-grid cols-2">
+          <section class="panel-card">
+            <div class="section-head"><span class="section-title">基础</span></div>
+            <div class="form-group"><label>API Key <span class="required">*</span></label>
+              <input id="s-apikey" class="mono" placeholder="留空 = 不鉴权（仅建议本机使用）">
+              <div class="field-note">客户端用它鉴权。留空等于任何人都能调用你的网关。</div>
+            </div>
+            <div class="form-group"><label>系统提示词</label>
+              <textarea id="s-prompt" placeholder="留空 = 使用内置默认"></textarea>
+              <div class="field-note">网关会用自己的提示词替换客户端的 system 消息，从源头消除大部分内容误报。</div>
+            </div>
+            <div class="form-group"><label>出站身份</label>
+              <select id="s-identity">
+                <option value="workbuddy">官方桌面客户端</option>
+                <option value="vscode">官方 VSCode 插件</option>
+                <option value="cli">官方命令行客户端</option>
+              </select>
+              <div class="field-note">不同身份对应不同的端点与请求头族，等价于"官方客户端在说话"。</div>
+            </div>
+            <div class="form-group"><label>默认出口区域</label>
+              <select id="s-realm"><option value="cn">国内版</option><option value="intl">国际版</option></select>
+            </div>
+          </section>
+
+          <section class="panel-card">
+            <div class="section-head"><span class="section-title">流量治理</span></div>
+            <div class="form-row">
+              <div class="form-group"><label>单号在途上限（0=不限）</label><input id="s-inflight" type="number" min="0" max="64"></div>
+              <div class="form-group"><label>熔断阈值</label><input id="s-breaker" type="number" min="0" max="20"></div>
+              <div class="form-group"><label>积分保底</label><input id="s-floor" type="number" min="0"></div>
+              <div class="form-group"><label>保留积分</label><input id="s-reserve" type="number" min="0"></div>
+              <div class="form-group"><label>每日 Token 上限</label><input id="s-daily" type="number" min="0"></div>
+              <div class="form-group"><label>聊天流空闲超时（秒）</label><input id="s-idle" type="number" min="30" max="1800"></div>
+            </div>
+            <div class="switch-row">
+              <span class="switch-text"><strong>指纹脱敏</strong><span>清洗 user/assistant 消息里的框架指纹串</span></span>
+              <label class="switch"><input type="checkbox" id="s-sanitize"><span class="track"></span></label>
+            </div>
+            <div class="switch-row">
+              <span class="switch-text"><strong>会话粘性</strong><span>同一会话尽量绑定同一账号（保住上游前缀缓存）</span></span>
+              <label class="switch"><input type="checkbox" id="s-sticky"><span class="track"></span></label>
+            </div>
+            <div class="switch-row">
+              <span class="switch-text"><strong>提示词缓存键</strong><span>按账号隔离注入 prompt_cache_key</span></span>
+              <label class="switch"><input type="checkbox" id="s-cachekey"><span class="track"></span></label>
+            </div>
+          </section>
+
+          <section class="panel-card">
+            <div class="section-head"><span class="section-title">定时任务开关</span></div>
+            <div class="switch-row">
+              <span class="switch-text"><strong>每日签到</strong><span>国内版账号自动签到领积分</span></span>
+              <label class="switch"><input type="checkbox" id="s-checkin"><span class="track"></span></label>
+            </div>
+            <div class="switch-row">
+              <span class="switch-text"><strong>猫猫旅行</strong><span>自动派出与领奖</span></span>
+              <label class="switch"><input type="checkbox" id="s-travel"><span class="track"></span></label>
+            </div>
+            <div class="switch-row">
+              <span class="switch-text"><strong>成长任务</strong><span>一键完成并自动领奖</span></span>
+              <label class="switch"><input type="checkbox" id="s-tasks"><span class="track"></span></label>
+            </div>
+            <div class="switch-row">
+              <span class="switch-text"><strong>Token 保活</strong><span>定时刷新，避免长时间闲置后过期</span></span>
+              <label class="switch"><input type="checkbox" id="s-keepalive"><span class="track"></span></label>
+            </div>
+            <div class="switch-row">
+              <span class="switch-text"><strong>余额后台刷新</strong><span>周期刷新积分，余额恢复后自动解冻冷却账号</span></span>
+              <label class="switch"><input type="checkbox" id="s-balance"><span class="track"></span></label>
+            </div>
+          </section>
+
+          <section class="panel-card">
+            <div class="section-head">
+              <span class="section-title">热更新</span>
+              <span class="badge badge-active" title="热更新仓库固定为官方发布仓库，不可更改">官方源 · 不可更改</span>
+            </div>
+            <div class="form-group"><label>GitHub Release 仓库</label>
+              <input id="s-repo" readonly class="mono" style="color:var(--muted);cursor:not-allowed">
+              <div class="field-note">仓库固定为官方发布地址，无法更改 —— 热更新会替换正在运行的二进制，
+                锁死来源才能保证你装的始终是 <b> wangct233-source/wb2go</b> 的原版程序，任何第三方都无法借"更新"之名分发被篡改的版本。</div>
+            </div>
+            <div class="switch-row">
+              <span class="switch-text"><strong>启用热更新</strong><span>定期检查新版本并提示</span></span>
+              <label class="switch"><input type="checkbox" id="s-hotupdate"><span class="track"></span></label>
+            </div>
+            <div class="switch-row">
+              <span class="switch-text"><strong>自动重启</strong><span>检测到新版本时自动替换并重启进程</span></span>
+              <label class="switch"><input type="checkbox" id="s-autorestart"><span class="track"></span></label>
+            </div>
+            <div class="field-note" id="version-note" style="margin-top:10px">当前版本 —</div>
+            <div class="btn-group">
+              <button class="btn btn-secondary btn-sm" id="btn-check-update">检查更新</button>
+              <button class="btn btn-primary btn-sm" id="btn-do-update">立即更新并重启</button>
+            </div>
+            <div class="msg" id="update-msg"></div>
+          </section>
+
+          <section class="panel-card span-2">
+            <div class="section-head"><span class="section-title">保存</span></div>
+            <div class="btn-group" style="margin-top:0">
+              <button class="btn btn-primary" id="btn-save">保存设置</button>
+              <button class="btn btn-ghost" id="btn-revert">放弃修改</button>
+            </div>
+            <div class="msg" id="save-msg"></div>
+          </section>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script src="/panel/app.js"></script>
+</body>
+</html>

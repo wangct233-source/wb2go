@@ -1,0 +1,93 @@
+{
+  "listen": ":8788",
+  "api_key": "",
+  "auth_dir": "./accounts",
+  "state_file": "./data/state.json",
+  "usage_file": "./data/usage.jsonl",
+  "accounts_file": "./data/accounts.json",
+  "panel_enabled": true,
+  "default_realm": "cn",
+  "identity": "workbuddy",
+  "client_name": "WorkBuddy",
+  "desktop_version": "5.5.6",
+  "cli_version": "2.137.1",
+  "user_agent": "",
+  "system_prompt": "",
+  "sanitize": true,
+  "hide_client_identity": false,
+  "prompt_cache_key": false,
+  "auto_switch_identity": false,
+  "max_identity_switch": 4,
+  "max_in_flight": 0,
+  "global_max_in_flight": 2,
+  "chat_timeout": 300,
+  "header_timeout": 120,
+  "rpc_timeout": 120,
+  "allow_origins": "",
+  "soft_rate": "600s",
+  "soft_rate_max": "2h",
+  "hard_rate": "16h",
+  "breaker_threshold": 3,
+  "breaker_cooldown": "30m",
+  "breaker_cooldown_max": "6h",
+  "degrade_threshold": 5,
+  "degrade_cooldown": "10m",
+  "degrade_cooldown_max": "2h",
+  "idle_weight_per_hour": 0.5,
+  "idle_weight_max": 5,
+  "prefer_expiring": true,
+  "expiring_soon": 168,
+  "credit_floor": 0,
+  "reserve_credits": 0,
+  "daily_token_limit": 0,
+  "block_background_requests": false,
+  "sticky_enabled": true,
+  "sticky_ttl": "30m",
+  "sticky_gc_interval": "5m",
+  "sticky_by_prefix": true,
+  "schedule": {
+    "account_gap_seconds": 0.8,
+    "activity_enabled": true,
+    "activity_hours": [
+      10
+    ],
+    "balance_refresh_enabled": true,
+    "balance_refresh_minutes": 5,
+    "checkin_enabled": true,
+    "checkin_hours": [
+      9,
+      21
+    ],
+    "keepalive_enabled": true,
+    "keepalive_hours": [
+      22
+    ],
+    "night_cat_enabled": true,
+    "night_cat_hours": [
+      1
+    ],
+    "task_enabled": true,
+    "task_hours": [
+      10,
+      16
+    ],
+    "travel_enabled": true,
+    "travel_hours": [
+      9,
+      21
+    ]
+  },
+  "local_web_tools": {
+    "enabled": false,
+    "max_rounds": 3,
+    "search_endpoint": "",
+    "timeout_seconds": 20
+  },
+  "update": {
+    "auto_restart": false,
+    "check_interval_hours": 6,
+    "enabled": true,
+    "github_release": "your-name/wb2go",
+    "mirror": ""
+  }
+}

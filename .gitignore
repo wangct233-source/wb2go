@@ -1,0 +1,31 @@
+
+
+
+
+# ---- 凭证与配置：绝不入库 ----
+# accounts/ 里是明文 accessToken / refreshToken
+# 本地配置（可能含 api_key）
+# 构建产物
+# 编辑器
+# 运行时数据
+*.env
+*.key
+*.log
+*.pem
+*.swp
+*.tmp
+.DS_Store
+.env
+.idea/
+.smoke/
+.vscode/
+Thumbs.db
+accounts/
+auths/
+config.json
+data/
+dist/
+docs/DEPLOY-43.226.44.194.md
+logs/
+wb2go
+wb2go.exe

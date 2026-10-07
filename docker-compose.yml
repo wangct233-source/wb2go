@@ -1,0 +1,57 @@
+services:
+  wb2go:
+    # 生产部署请改成拉取预构建镜像（无需本机 Go 环境，几秒完成安装）：
+    #   image: ghcr.io/wb2go/wb2go:latest
+    # 本地源码构建（需要 Go ≥ 1.23）：
+    build:
+      context: .
+      args:
+        VERSION: ${WB2GO_VERSION:-dev}
+    image: wb2go:latest
+    container_name: wb2go
+    restart: unless-stopped
+
+    command: ["/app/wb2go", "-config", "/app/conf/config.json"]
+
+    ports:
+      - "${WB2GO_PORT:-8788}:8788"
+
+    environment:
+      # 覆盖时区以保证定时任务的整点判定符合预期
+      TZ: ${TZ:-Asia/Shanghai}
+      # 下列变量会覆盖 config.json 里的同名项（容器部署改配置比改文件方便）
+      # WB2GO_API_KEY: 在 .env 里设，首次启动未设时程序会自动生成并写入 conf/config.json
+      # WB2GO_LISTEN: ":8788"
+      # WB2GO_DEFAULT_REALM: "cn"   # cn | intl
+      # WB2GO_IDENTITY: "workbuddy"  # workbuddy | vscode | cli
+      # WB2GO_UPDATE_REPO: "你的用户名/wb2go"   # 填了才能在面板里一键热更新
+
+    volumes:
+      # 账号凭证（明文 token，务必只对本机可写）
+      - ./accounts:/app/accounts
+      # 配置目录 —— 注意：挂的是目录而不是单个 config.json。
+      # Docker 的单文件挂载点不可 rename（device or resource busy），
+      # 会让配置保存的"原子替换"写法直接失败。
+      - ./conf:/app/conf
+      # 用量日志与池状态
+      - ./data:/app/data
+
+    # 挂载目录属主要和容器内 uid 10001 对得上，否则写凭证会 permission denied。
+    # 三个解法任选（推荐第一个）：
+    #   1. 用自己的 uid 跑容器（挂载目录本来就是你建的）：
+    #        docker compose up -d --force-recreate
+    #      或写进 .env 长期生效：PUID=1000 / PGID=1000
+    #   2. 把目录属主交给容器用户（需要 sudo）：
+    #        sudo chown -R 10001:10001 ./accounts ./data ./conf
+    #   3. 以 root 跑（NAS / 群晖不便 chown 时用）：
+    #        user: "0:0"
+    user: "${PUID:-10001}:${PGID:-10001}"
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    security_opt:
+      - no-new-privileges:true
