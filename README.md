@@ -1,7 +1,27 @@
 # wb2go
 
-> 把 WorkBuddy / CodeBuddy 订阅包装成 **OpenAI 兼容 API** 的多账号网关。
-> 纯 Go 实现，**零第三方依赖**，单文件二进制 + 内嵌 Web 控制台。
+[![Release](https://img.shields.io/github/v/release/wangct233-source/wb2go?style=flat-square)](https://github.com/wangct233-source/wb2go/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.23+-00ADD8.svg?style=flat-square)](https://go.dev)
+[![Stars](https://img.shields.io/github/stars/wangct233-source/wb2go?style=flat-square)](https://github.com/wangct233-source/wb2go/stargazers)
+[![QQ 群](https://img.shields.io/badge/QQ群-539858079-red.svg?style=flat-square)](https://qm.qq.com/q/xHtxPNo5qM)
+
+**English** | 简体中文见下
+
+> **wb2go** turns a WorkBuddy / CodeBuddy subscription into an **OpenAI-compatible API**.
+> Multi-account pooling, China / Global dual-region routing, pure Go standard library
+> (zero third-party deps), single-binary with embedded web console, hot updates.
+
+把 WorkBuddy / CodeBuddy 订阅包装成 **OpenAI 兼容 API** 的多账号网关。
+纯 Go 标准库实现，**零第三方依赖**，单文件二进制 + 内嵌 Web 控制台。
+
+## 截图
+
+| 概览 | 模型目录 |
+|---|---|
+| ![概览](docs/img/panel-overview.png) | ![模型](docs/img/panel-models.png) |
+
+双主题（亮 / 暗）· 国内版 / 国际版区域切换 · 按日用量图表 · 全部内嵌进二进制，无任何外部资源。
 
 ```bash
 # 方式一：直接拉预构建镜像（推荐，无需本机装 Go）

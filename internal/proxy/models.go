@@ -126,6 +126,18 @@ func guessRealmFromModel(model string) string {
 	return "cn"
 }
 
+// ModelsPayload 供面板复用：返回 OpenAI /v1/models 形状的响应体。
+// 面板端点走面板自己的鉴权，避免浏览器 fetch /v1/models 没带 key 而 401。
+func ModelsPayload(realm string) map[string]any {
+	if realm != "" && !ValidRealmString(realm) {
+		realm = ""
+	}
+	return map[string]any{"object": "list", "data": modelsForRealm(realm)}
+}
+
+// ValidRealmString 与 upstream.ValidRealm 等价的本地包装，避免多一处导入。
+func ValidRealmString(s string) bool { return s == "cn" || s == "intl" }
+
 // realmOrDefault 收敛区域默认值，避免到处写三元表达式。
 func realmOrDefault(def, got string) string {
 	if got != "" {

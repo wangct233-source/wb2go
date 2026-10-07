@@ -14,6 +14,7 @@ import (
 	"github.com/wb2go/wb2go/internal/account"
 	"github.com/wb2go/wb2go/internal/config"
 	"github.com/wb2go/wb2go/internal/hotupdate"
+	"github.com/wb2go/wb2go/internal/proxy"
 	"github.com/wb2go/wb2go/internal/store"
 	"github.com/wb2go/wb2go/internal/tasks"
 	"github.com/wb2go/wb2go/internal/upstream"
@@ -91,6 +92,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/panel/api/oauth/start", g(s.apiOAuthStart))
 	mux.HandleFunc("/panel/api/oauth/status", g(s.apiOAuthStatus))
 	mux.HandleFunc("/panel/api/realms", g(s.apiRealms))
+	mux.HandleFunc("/panel/api/models", g(s.apiModels))
 	mux.HandleFunc("/panel/api/usage/recent", g(s.apiUsageRecent))
 	mux.HandleFunc("/panel/api/scheduler", g(s.apiScheduler))
 	mux.HandleFunc("/panel/api/scheduler/trigger", g(s.apiSchedulerTrigger))
@@ -498,6 +500,14 @@ func (s *Server) apiOAuthStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ok(w, map[string]any{"auth_url": url, "realm": realm})
+}
+
+// apiModels 面板版模型列表：与 /v1/models 同数据，但走面板鉴权。
+// 早前前端直接 fetch /v1/models，浏览器不带 Authorization 头，
+// 配置了 api_key 的部署里模型页永远 401。
+func (s *Server) apiModels(w http.ResponseWriter, r *http.Request) {
+	realm := r.URL.Query().Get("realm")
+	ok(w, proxy.ModelsPayload(realm))
 }
 
 // apiRealms 返回受支持的区域列表，供面板渲染区域选择器。

@@ -704,7 +704,8 @@
   // ---------- 模型 ----------
 
   function refreshModels() {
-    requestJSON('/v1/models', null, 20000).then(function (r) {
+    // 走面板自己的端点：/v1/models 需要 API Key，浏览器 fetch 不带凭证会 401
+    requestJSON('/panel/api/models', null, 20000).then(function (r) {
       if (!r.ok) { setMsg('models-msg', apiError(r.data, r.status), true); return; }
       setMsg('models-msg', '');
       var list = (r.data && r.data.data) || [];
