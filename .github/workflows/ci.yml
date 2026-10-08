@@ -62,13 +62,15 @@ jobs:
           VER="${{ steps.ver.outputs.ver }}"
           LDFLAGS="-s -w -X main.Version=${VER}"
           mkdir -p dist
+          # 环境变量前缀写法（GOOS=x go build）不会把 GOOS 留作 shell 变量，
+          # 所以后面判断 Windows 要显式拆出来 —— 早前在这里栽过：windows
+          # 产物没拿到 .exe 后缀，后面的归档循环全乱。
           for target in linux/amd64 linux/arm64 windows/amd64 darwin/amd64 darwin/arm64; do
-            GOOS="${target%/*}" GOARCH="${target#*/}" CGO_ENABLED=0 \
-              go build -trimpath -ldflags="$LDFLAGS" -o "dist/wb2go-${target%/*}-${target#*/}" ./cmd/wb2go
-            # Windows 加 .exe 后缀（后面的 zip 里靠扩展名识别）
-            if [ "$GOOS" = "windows" ]; then
-              mv "dist/wb2go-windows-amd64" "dist/wb2go-windows-amd64.exe"
-            fi
+            os="${target%/*}"; arch="${target#*/}"
+            out="dist/wb2go-${os}-${arch}"
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+              go build -trimpath -ldflags="$LDFLAGS" -o "$out" ./cmd/wb2go
+            if [ "$os" = "windows" ]; then mv "$out" "$out.exe"; fi
           done
           # 打 zip：Windows 用户双击即用，Linux/macOS 保留可执行位
           cd dist
@@ -107,6 +109,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+        # 多架构必需：arm64 构建阶段要在 x64 runner 上跑 alpine/golang，
+        # 没有 binfmt 模拟器直接 exec format error —— 早前 docker job 就挂在这
 
       - uses: docker/setup-buildx-action@v3
 

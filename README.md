@@ -30,7 +30,7 @@ docker run -d --name wb2go --restart unless-stopped \
   -v $(pwd)/accounts:/app/accounts \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/config.json:/app/config.json \
-  ghcr.io/wb2go/wb2go:latest
+  ghcr.io/wangct233-source/wb2go:latest
 
 # 方式二：源码构建（需要 Go ≥ 1.23）
 go build -o wb2go ./cmd/wb2go && ./wb2go

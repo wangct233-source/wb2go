@@ -1,7 +1,7 @@
 services:
   wb2go:
     # 生产部署请改成拉取预构建镜像（无需本机 Go 环境，几秒完成安装）：
-    #   image: ghcr.io/wb2go/wb2go:latest
+    #   image: ghcr.io/wangct233-source/wb2go:latest
     # 本地源码构建（需要 Go ≥ 1.23）：
     build:
       context: .
