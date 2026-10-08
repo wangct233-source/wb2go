@@ -53,6 +53,24 @@ func main() {
 		return
 	}
 
+	// migrate 子命令：容器热更新的接管脚本（由 hotupdate 启动的短命
+	// helper 容器执行，正常用户永远不会手动调用）。参数从环境变量传入，
+	// 因为此进程以新镜像运行，而配置项指向旧版本。
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		oldName := os.Getenv("MIGRATE_OLD_NAME")
+		newImage := os.Getenv("MIGRATE_NEW_IMAGE")
+		if oldName == "" || newImage == "" {
+			fmt.Fprintln(os.Stderr, "migrate 需要 MIGRATE_OLD_NAME 与 MIGRATE_NEW_IMAGE 环境变量")
+			os.Exit(2)
+		}
+		fmt.Printf("[migrate] 接管 %s → 镜像 %s\n", oldName, newImage)
+		if err := hotupdate.RunMigration(oldName, newImage); err != nil {
+			fmt.Fprintln(os.Stderr, "[migrate] 失败:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
 	log.SetPrefix("")
 
