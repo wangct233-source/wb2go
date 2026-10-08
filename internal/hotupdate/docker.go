@@ -168,14 +168,13 @@ func truncateStr(s string, n int) string {
 
 // RecreateSelf 用官方新镜像重建当前容器。
 //
-// 这是"自杀式"操作，步骤必须严格：
-//  1. inspect 自己，拿到原始 Name / Config / HostConfig
-//  2. 校验当前容器镜像确实是我们官方镜像（防止误重建用户的其他容器）
-//  3. stop 旧容器 → rename 成 {name}-old（腾出名字）→ 用原配置创建新容器 → start
-//  4. 删除 backup。任何一步失败 → rename 回来，原容器恢复运行
+// 核心难题：执行重建的进程就在旧容器里，一旦 stop 旧容器，
+// 重建流程自己也死了（首版实现就死在这 —— 容器停在 Exited，
+// rename/create/start 全没执行）。
 //
-// 返回给调用方时本进程可能已被杀掉（新容器顶替），所以调用方在
-// 发起重建前就该把响应写给用户。
+// 解法（watchtower 同款）：先启动一个**独立 helper 容器**（docker:cli 镜像 +
+// 动态生成的接管脚本），由它负责 stop 旧容器 → rename → 用原配置创建新容器
+// → start → 清理。本进程只负责 pull 镜像、启动 helper、然后自行退出。
 func (d *DockerClient) RecreateSelf(officialImage string) (string, error) {
 	self, err := d.inspectSelf()
 	if err != nil {
@@ -192,15 +191,14 @@ func (d *DockerClient) RecreateSelf(officialImage string) (string, error) {
 	isOfficial := strings.Contains(cfgImage, "wangct233-source/wb2go") ||
 		strings.Contains(oldImage, "wangct233-source/wb2go")
 	if !isOfficial {
-		return "", fmt.Errorf("安全检查未通过：当前容器镜像 %s（%s）不是官方 wb2go 镜像，拒绝自动重建", cfgImage, oldImage[:19])
+		return "", fmt.Errorf("安全检查未通过：当前容器镜像 %s（%s）不是官方 wb2go 镜像，拒绝自动重建", cfgImage, truncateStr(oldImage, 19))
 	}
 
-	// 新镜像 ID
+	// 1. pull 新镜像并比对 ID
 	newID, err := d.PullImage(officialImage)
 	if err != nil {
 		return "", err
 	}
-	// 比对：当前容器用的镜像 ID 与新 pull 的一致 → 无需重建
 	curResp, err := d.dockerRound("GET", "/v1.41/images/"+oldImage+"/json", nil, "")
 	if err == nil {
 		var im struct {
@@ -213,58 +211,106 @@ func (d *DockerClient) RecreateSelf(officialImage string) (string, error) {
 		}
 	}
 
-	// 拷贝原始创建参数（Config/HostConfig 原样传回 Docker API）
-	createBody := map[string]any{
-		"Image":      officialImage,
-		"Config":     self.Config,
-		"HostConfig": self.HostConfig,
-	}
-	buf, _ := json.Marshal(createBody)
+	// 2. 生成 helper 接管脚本（参数从当前容器配置动态提取）
+	script := buildHelperScript(self, officialImage, oldName)
 
-	// 1. 停旧
-	if resp, err := d.dockerRound("POST", "/v1.41/containers/"+self.ID+"/stop?t=10", nil, ""); err != nil {
-		return "", fmt.Errorf("停止旧容器失败: %w", err)
-	} else {
-		resp.Body.Close()
+	// 3. 启动 helper 容器（独立于旧容器生命周期，stop 旧容器杀不到它）
+	helperBody := map[string]any{
+		"Image": HelperImage,
+		"Cmd":   []string{"sh", "-c", script},
+		"HostConfig": map[string]any{
+			"Binds":      []string{d.socket + ":/var/run/docker.sock"},
+			"AutoRemove": true,
+		},
 	}
-
-	// 2. rename 腾名
-	backupName := oldName + "-update-backup"
-	if resp, err := d.dockerRound("POST", "/v1.41/containers/"+self.ID+"/rename?name="+backupName, nil, ""); err != nil {
-		// 恢复启动
-		d.dockerRound("POST", "/v1.41/containers/"+self.ID+"/start", nil, "")
-		return "", fmt.Errorf("重命名旧容器失败: %w", err)
-	} else {
-		resp.Body.Close()
+	buf, _ := json.Marshal(helperBody)
+	resp, err := d.dockerRound("POST", "/v1.41/containers/create?name=wb2go-update-helper", strings.NewReader(string(buf)), "application/json")
+	if err != nil {
+		return "", fmt.Errorf("启动迁移 helper 失败: %w", err)
+	}
+	raw, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 201 {
+		return "", fmt.Errorf("创建 helper 容器失败: HTTP %d %s", resp.StatusCode, truncateStr(string(raw), 200))
 	}
 
-	// 3. 创建新容器（原名字、原配置、新镜像）
-	if resp, err := d.dockerRound("POST", "/v1.41/containers/create?name="+oldName, strings.NewReader(string(buf)), "application/json"); err != nil {
-		d.dockerRound("POST", "/v1.41/containers/"+self.ID+"/rename?name="+oldName, nil, "")
-		d.dockerRound("POST", "/v1.41/containers/"+self.ID+"/start", nil, "")
-		return "", fmt.Errorf("创建新容器失败: %w", err)
-	} else {
-		var created struct {
-			ID string `json:"Id"`
+	// 4. 给 helper 一点启动时间，然后本进程自行退出（stop 自己）。
+	//    之后由 helper 完成 stop → rename → create → start → 清理。
+	time.Sleep(3 * time.Second)
+	d.dockerRound("POST", "/v1.41/containers/"+self.ID+"/stop?t=3", nil, "")
+
+	// 走到这里 normally 到不了（进程已随容器停止）。
+	return fmt.Sprintf("迁移 helper 已接管：旧容器将停止并由镜像 %s 重建。", officialImage), nil
+}
+
+// HelperImage 是执行迁移的 helper 容器镜像（含 docker CLI）。
+const HelperImage = "docker:27-cli"
+
+// buildHelperScript 从当前容器配置生成接管脚本。
+//
+// 提取范围覆盖本项目所有部署用例：端口绑定、binds、env、restart 策略、
+// 组附加、labels。够用且可审计 —— 不做通用容器迁移器。
+func buildHelperScript(self *ContainerInfo, newImage, oldName string) string {
+	var b strings.Builder
+	b.WriteString("set -e\n")
+	b.WriteString("sleep 2\n")
+	b.WriteString(fmt.Sprintf("docker stop -t 5 %s\n", oldName))
+	b.WriteString(fmt.Sprintf("docker rename %s %s-old\n", oldName, oldName))
+
+	// docker run 参数
+	args := fmt.Sprintf("-d --name %s", oldName)
+	hc := self.HostConfig
+	if rp, ok := hc["RestartPolicy"].(map[string]any); ok {
+		if name, ok := rp["Name"].(string); ok && name != "" {
+			args += fmt.Sprintf(" --restart %s", name)
+			if mv, ok := rp["MaximumRetryCount"].(float64); ok && mv > 0 {
+				args += fmt.Sprintf(":%.0f", mv)
+			}
 		}
-		raw, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if json.Unmarshal(raw, &created) != nil || created.ID == "" {
-			d.dockerRound("POST", "/v1.41/containers/"+self.ID+"/rename?name="+oldName, nil, "")
-			d.dockerRound("POST", "/v1.41/containers/"+self.ID+"/start", nil, "")
-			return "", fmt.Errorf("创建新容器响应异常: %s", truncateStr(string(raw), 200))
+	}
+	if binds, ok := hc["Binds"].([]any); ok {
+		for _, v := range binds {
+			if s, ok := v.(string); ok {
+				args += fmt.Sprintf(" -v %q", s)
+			}
 		}
 	}
-
-	// 4. 起新容器
-	if resp, err := d.dockerRound("POST", "/v1.41/containers/"+oldName+"/start", nil, ""); err != nil {
-		return "", fmt.Errorf("新容器启动失败（旧容器保留为 %s，可手动恢复）: %w", backupName, err)
-	} else {
-		resp.Body.Close()
+	if pb, ok := hc["PortBindings"].(map[string]any); ok {
+		for port, bindings := range pb {
+			list, _ := bindings.([]any)
+			for _, bind := range list {
+				bm, _ := bind.(map[string]any)
+				hostPort, _ := bm["HostPort"].(string)
+				args += fmt.Sprintf(" -p %s:%s", hostPort, strings.TrimSuffix(port, "/tcp"))
+			}
+		}
 	}
-
-	// 5. 删备份（失败不影响，留给用户清理）
-	d.dockerRound("DELETE", "/v1.41/containers/"+self.ID+"?force=true&v=true", nil, "")
-
-	return fmt.Sprintf("容器已用新镜像重建（%s → %s），本进程即将被替换。", oldImage[:19], newID[:19]), nil
+	if ga, ok := hc["GroupAdd"].([]any); ok {
+		for _, v := range ga {
+			if s, ok := v.(string); ok {
+				args += " --group-add " + s
+			} else if f, ok := v.(float64); ok {
+				args += fmt.Sprintf(" --group-add %.0f", f)
+			}
+		}
+	}
+	if env, ok := self.Config["Env"].([]any); ok {
+		for _, v := range env {
+			if s, ok := v.(string); ok {
+				args += fmt.Sprintf(" -e %q", s)
+			}
+		}
+	}
+	if labels, ok := self.Config["Labels"].(map[string]any); ok {
+		for k, v := range labels {
+			if s, ok := v.(string); ok && s != "" {
+				args += fmt.Sprintf(" --label %q=%q", k, s)
+			}
+		}
+	}
+	args += " " + newImage
+	b.WriteString("docker run " + args + "\n")
+	b.WriteString(fmt.Sprintf("docker rm %s-old\n", oldName))
+	b.WriteString("echo MIGRATION_DONE\n")
+	return b.String()
 }
