@@ -182,6 +182,48 @@ Codex / Claude Code 直接可用（Responses API 已实现）。
 - `api_key` 为空时任何人都能调用你的网关，**不要这样暴露到公网**；
 - 面板与 API 共用同一套密钥，面板页面的 CSP 已收紧到 `default-src 'none'`。
 
+## 二进制部署（推荐生产）
+
+```bash
+# 下载（国内可加加速前缀 https://ghfast.top/<原链接>）
+sudo mkdir -p /opt/wb2go && cd /opt/wb2go
+sudo wget https://github.com/wangct233-source/wb2go/releases/latest/download/wb2go-linux-amd64
+sudo chmod +x wb2go-linux-amd64
+./wb2go-linux-amd64   # 首次启动自动生成 config.json 与随机 API Key（看启动日志）
+```
+
+生产环境强烈建议配 systemd 守护（崩溃自动拉起 + 开机自启）：
+
+```ini
+# /etc/systemd/system/wb2go.service
+[Unit]
+Description=wb2go gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/wb2go
+ExecStart=/opt/wb2go/wb2go -config /opt/wb2go/config.json
+Restart=always
+RestartSec=5
+# 以非 root 运行；属主记得 chown -R wb2go:wb2go /opt/wb2go
+User=wb2go
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/wb2go
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now wb2go
+sudo systemctl status wb2go     # active (running) 即正常
+journalctl -u wb2go -f          # 看日志
+```
+
+升级 = 下载新二进制覆盖 + `systemctl restart wb2go`；或在配置里开启热更新后面板一键升级。
+
 ## 从源码构建
 
 ```bash
