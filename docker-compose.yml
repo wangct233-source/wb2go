@@ -33,6 +33,9 @@ services:
       # Docker 的单文件挂载点不可 rename（device or resource busy），
       # 会让配置保存的"原子替换"写法直接失败。
       - ./conf:/app/conf
+      # 面板热更新（容器自动拉新镜像并自重建）依赖 docker socket。
+      # 不想给它就删掉这行 —— 热更新会提示改用 docker pull 升级。
+      - /var/run/docker.sock:/var/run/docker.sock
       # 用量日志与池状态
       - ./data:/app/data
 

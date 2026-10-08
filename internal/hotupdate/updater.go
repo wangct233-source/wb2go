@@ -27,6 +27,10 @@ import (
 //     "收费版"，这正是 README 里明确警告过的骗局形态。
 const DefaultRepo = "wangct233-source/wb2go"
 
+// OfficialImage 是容器形态的官方镜像。
+// 面板热更新在容器内部通过 docker.sock pull 该镜像并自重建容器。
+const OfficialImage = "ghcr.io/wangct233-source/wb2go:latest"
+
 // Updater 从 GitHub Releases 拉取预编译产物并热替换当前二进制。
 //
 // 为什么要做这个：容器部署时用户通常不希望为了一个小版本升级去重新 build 镜像。
@@ -189,8 +193,23 @@ func (u *Updater) Check(ctx context.Context) (any, error) {
 	return u.check(ctx)
 }
 
-// Apply 下载新版本、校验、替换二进制，并触发重启。
+// Apply 按运行环境分流升级：
+//
+//   - 容器内（/.dockerenv 存在）：走 Docker Engine API 拉新镜像并重建容器。
+//     直接替换容器内文件是死路 —— overlayfs 上虽然写得进去，但容器重建后
+//     立即回滚到镜像层，且用户下次 docker pull 会覆盖掉手工改动。
+//   - 宿主机裸跑：下载新二进制 → 原子替换 → 重新 exec（原有路径）。
 func (u *Updater) Apply(ctx context.Context) (string, error) {
+	if inContainer() {
+		if !dockerSocketAvailable() {
+			return "", fmt.Errorf("检测到容器部署但未挂载 docker.sock。" +
+				"请在 docker run 加上 -v /var/run/docker.sock:/var/run/docker.sock 后重试，" +
+				"或在宿主机执行: docker pull " + OfficialImage + " && docker restart <容器名>")
+		}
+		dc := NewDockerClient()
+		return dc.RecreateSelf(OfficialImage)
+	}
+
 	info, err := u.check(ctx)
 	if err != nil {
 		return "", err

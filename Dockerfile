@@ -51,3 +51,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 # exec 形式让二进制成为 PID 1，直接收到 SIGTERM 实现优雅退出
 CMD ["/app/wb2go", "-config", "/app/conf/config.json"]
+
+# 面板热更新（容器自升级）需要额外挂载 docker.sock，见 docker-compose.yml：
+#   -v /var/run/docker.sock:/var/run/docker.sock
+# 不挂也能正常跑，只是面板里点"立即更新"会提示改用 docker pull 升级
