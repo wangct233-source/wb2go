@@ -185,9 +185,14 @@ func (d *DockerClient) RecreateSelf(officialImage string) (string, error) {
 	oldImage := self.Image
 
 	// 安全闸：只重建跑着我们官方镜像的容器。
-	// 镜像名可能是 ghcr.io/wangct233-source/wb2go:latest 或带 sha256 的完整引用。
-	if !strings.Contains(oldImage, "wangct233-source/wb2go") {
-		return "", fmt.Errorf("安全检查未通过：当前容器镜像 %s 不是官方 wb2go 镜像，拒绝自动重建", oldImage)
+	// 注意 inspect 的 Image 字段是运行时 digest（sha256:xxx），不含镜像名；
+	// 创建时的引用在 Config.Image 里（如 ghcr.io/wangct233-source/wb2go:latest）。
+	// 早前拿 Image 判断，官方容器也会被误判"非官方"，安全闸变成铁门。
+	cfgImage, _ := self.Config["Image"].(string)
+	isOfficial := strings.Contains(cfgImage, "wangct233-source/wb2go") ||
+		strings.Contains(oldImage, "wangct233-source/wb2go")
+	if !isOfficial {
+		return "", fmt.Errorf("安全检查未通过：当前容器镜像 %s（%s）不是官方 wb2go 镜像，拒绝自动重建", cfgImage, oldImage[:19])
 	}
 
 	// 新镜像 ID
