@@ -215,6 +215,10 @@ func (d *DockerClient) RecreateSelf(officialImage string) (string, error) {
 	script := buildHelperScript(self, officialImage, oldName)
 
 	// 3. 启动 helper 容器（独立于旧容器生命周期，stop 旧容器杀不到它）
+	// containers/create 不会自动拉镜像（那是 CLI 的行为），先显式 pull
+	if _, err := d.PullImage(HelperImage); err != nil {
+		return "", fmt.Errorf("拉取迁移 helper 镜像 %s 失败: %w", HelperImage, err)
+	}
 	helperBody := map[string]any{
 		"Image": HelperImage,
 		"Cmd":   []string{"sh", "-c", script},
