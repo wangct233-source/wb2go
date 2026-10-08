@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.23+-00ADD8.svg?style=flat-square)](https://go.dev)
 [![Stars](https://img.shields.io/github/stars/wangct233-source/wb2go?style=flat-square)](https://github.com/wangct233-source/wb2go/stargazers)
-[![QQ 群](https://img.shields.io/badge/QQ群-539858079-red.svg?style=flat-square)](https://qm.qq.com/q/xHtxPNo5qM)
+[![QQ 群](https://img.shields.io/badge/QQ群-1071892426-red.svg?style=flat-square)](https://qun.qq.com/join.html)
 
 **English** | 简体中文见下
 
