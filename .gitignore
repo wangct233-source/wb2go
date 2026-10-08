@@ -1,32 +1,36 @@
-
-
-
-
 # ---- 凭证与配置：绝不入库 ----
 # accounts/ 里是明文 accessToken / refreshToken
-# 本地配置（可能含 api_key）
-# 构建产物
-# 编辑器
-# 运行时数据
-*.env
-*.key
-*.log
-*.pem
-*.swp
-*.tmp
-.DS_Store
-.env
-.idea/
-.smoke/
-.vscode/
-Thumbs.db
 accounts/
 auths/
 config.json
+*.env
+.env
+*.key
+*.pem
+
+# ---- 本地部署文档（含服务器 IP / 密钥，只留本地）----
+docs/DEPLOY-*.md
+
+# ---- 构建产物 ----
+# 注意必须用 / 锚定根级：不带斜杠的模式会匹配任意层级，
+# 曾把 cmd/wb2go/ 主程序入口整个忽略，导致 GitHub 源码不完整
+/wb2go
+/wb2go.exe
+/dist/
+
+# ---- 运行时数据 ----
 data/
-dist/
-docs/DEPLOY-43.226.44.194.md
 logs/
-wb2go
-wb2go.exe
+*.log
+
+# ---- 临时与本地测试 ----
+.smoke/
 .shot/
+*.tmp
+
+# ---- 编辑器 ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
