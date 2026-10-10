@@ -26,7 +26,7 @@
 ```bash
 # 方式一：直接拉预构建镜像（推荐，无需本机装 Go）
 docker run -d --name wb2go --restart unless-stopped \
-  -p 8788:8788 -e TZ=Asia/Shanghai \
+  -p 8780:8780 -e TZ=Asia/Shanghai \
   -v $(pwd)/accounts:/app/accounts \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/config.json:/app/config.json \
@@ -36,7 +36,7 @@ docker run -d --name wb2go --restart unless-stopped \
 go build -o wb2go ./cmd/wb2go && ./wb2go
 ```
 
-启动后打开 <http://127.0.0.1:8788/panel/> ，用浏览器完成 OAuth 授权即可。
+启动后打开 <http://127.0.0.1:8780/panel/> ，用浏览器完成 OAuth 授权即可。
 
 ---
 
@@ -137,7 +137,7 @@ MIT 协议授予的是**代码层面**的自由：你可以拿去改、自己用
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
-| `listen` | `:8788` | 监听地址 |
+| `listen` | `:8780` | 监听地址 |
 | `api_key` | 空 | 留空 = 不鉴权（**公网必须设置**） |
 | `auth_dir` | `./accounts` | 账号凭证目录 |
 | `identity` | `workbuddy` | 出站身份：`workbuddy` / `vscode` / `cli` |
@@ -169,7 +169,7 @@ MIT 协议授予的是**代码层面**的自由：你可以拿去改、自己用
 ## 客户端接入
 
 ```bash
-export OPENAI_BASE_URL="http://127.0.0.1:8788/v1"
+export OPENAI_BASE_URL="http://127.0.0.1:8780/v1"
 export OPENAI_API_KEY="面板里配置的 api_key"
 ```
 
