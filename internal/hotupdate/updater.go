@@ -1,6 +1,10 @@
 package hotupdate
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -260,6 +264,26 @@ func (u *Updater) downloadAndReplace(ctx context.Context, info *Info, exe string
 		return "", fmt.Errorf("下载失败：HTTP %d", resp.StatusCode)
 	}
 
+	// 产物可能是归档（CI 发的 tar.gz / zip）或裸二进制。
+	// 归档必须解包提取出真正的可执行文件，直接把压缩字节写盘
+	// 重启后就是 "exec format error" —— 服务直接起不来。
+	var bin io.Reader
+	switch {
+	case strings.HasSuffix(strings.ToLower(info.AssetURL), ".tar.gz"),
+		strings.HasSuffix(strings.ToLower(info.AssetURL), ".tgz"):
+		bin, err = extractTarGz(resp.Body, runtime.GOOS, runtime.GOARCH)
+		if err != nil {
+			return "", fmt.Errorf("解包 tar.gz 失败: %w", err)
+		}
+	case strings.HasSuffix(strings.ToLower(info.AssetURL), ".zip"):
+		bin, err = extractZip(resp.Body, runtime.GOOS, runtime.GOARCH)
+		if err != nil {
+			return "", fmt.Errorf("解包 zip 失败: %w", err)
+		}
+	default:
+		bin = resp.Body
+	}
+
 	dir := filepath.Dir(exe)
 	tmp := filepath.Join(dir, ".wb2go-update-"+strconv.Itoa(os.Getpid()))
 	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
@@ -267,13 +291,20 @@ func (u *Updater) downloadAndReplace(ctx context.Context, info *Info, exe string
 		return "", fmt.Errorf("写入临时文件失败（容器内请确认挂载目录可写）: %w", err)
 	}
 	h := sha256.New()
-	written, err := io.Copy(io.MultiWriter(f, h), resp.Body)
+	written, err := io.Copy(io.MultiWriter(f, h), bin)
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
 	if err != nil {
 		os.Remove(tmp)
 		return "", fmt.Errorf("写入失败: %w", err)
+	}
+	// ELF 魔数自检：不管产物是什么形态，落盘的必须是本平台的可执行文件
+	if head, _ := os.ReadFile(tmp); len(head) >= 20 {
+		if runtime.GOOS == "linux" && string(head[:4]) != "\x7fELF" {
+			os.Remove(tmp)
+			return "", fmt.Errorf("下载的产物不是 Linux 可执行文件（前 4 字节 %x），产物打包可能有问题", head[:4])
+		}
 	}
 	sum := hex.EncodeToString(h.Sum(nil))
 
@@ -351,4 +382,66 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+// extractTarGz 从 tar.gz 归档里提取当前平台的可执行文件。
+// CI 打包时把二进制连同 README 一起打进去，这里按名字匹配。
+func extractTarGz(r io.Reader, goos, goarch string) (io.Reader, error) {
+	gz, err := gzip.NewReader(r)
+	if err != nil {
+		return nil, err
+	}
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return nil, fmt.Errorf("归档里没有找到 %s/%s 的可执行文件", goos, goarch)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		name := strings.ToLower(hdr.Name)
+		if strings.Contains(name, goos) && matchesPlatform(hdr.Name) && !strings.HasSuffix(name, ".sha256") {
+			// tar 流只能顺序读，把内容缓存进内存（二进制 ~8MB）
+			data, err := io.ReadAll(tr)
+			if err != nil {
+				return nil, err
+			}
+			return bytes.NewReader(data), nil
+		}
+	}
+}
+
+// extractZip 同上，zip 版（Windows 产物）。
+func extractZip(r io.Reader, goos, goarch string) (io.Reader, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range zr.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		name := strings.ToLower(f.Name)
+		if strings.Contains(name, goos) && matchesPlatform(f.Name) && !strings.HasSuffix(name, ".sha256") {
+			rc, err := f.Open()
+			if err != nil {
+				return nil, err
+			}
+			out, err := io.ReadAll(rc)
+			rc.Close()
+			if err != nil {
+				return nil, err
+			}
+			return bytes.NewReader(out), nil
+		}
+	}
+	return nil, fmt.Errorf("归档里没有找到 %s/%s 的可执行文件", goos, goarch)
 }
