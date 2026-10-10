@@ -44,6 +44,10 @@ func LoadState(path string) (*State, error) {
 	if st.Entries == nil {
 		st.Entries = map[string]*Entry{}
 	}
+	if st.Binds == nil {
+		// 状态文件里显式写 "binds": null 时同样会得到 nil map
+		st.Binds = map[string]string{}
+	}
 	for _, e := range st.Entries {
 		if e.ModelCools == nil {
 			e.ModelCools = map[string]time.Time{}
@@ -98,7 +102,9 @@ func (s *StickyRouter) RestoreBinds(binds map[string]string, ttl time.Duration) 
 // Save 原子落盘池状态 + 粘性绑定。周期调用（如 30 秒一次）。
 func (p *Pool) Save(path string, sticky *StickyRouter, stickyTTL time.Duration) error {
 	p.mu.RLock()
-	st := &State{Version: stateVersion, Entries: map[string]*Entry{}}
+	// Binds 必须同步初始化：首启或状态文件缺失时走不到 LoadState 的兜底，
+	// 这里有粘性绑定时（哪怕只有一条）就会踩 nil map panic。
+	st := &State{Version: stateVersion, Entries: map[string]*Entry{}, Binds: map[string]string{}}
 	for uid, e := range p.entries {
 		cp := *e
 		cp.InFlight, cp.DailyTokens = 0, 0
