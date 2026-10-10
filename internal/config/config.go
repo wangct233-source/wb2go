@@ -145,7 +145,7 @@ type LocalTool struct {
 // 首次启动若目录内无 config.json，会用它落盘（api_key 为空时随机生成）。
 func Default() *Config {
 	return &Config{
-		Listen:       ":8788",
+		Listen:       ":8780",
 		AuthDir:      "./accounts",
 		StateFile:    "./data/state.json",
 		UsageFile:    "./data/usage.jsonl",
@@ -297,7 +297,7 @@ func parseBool(v string, fallback bool) bool {
 func (c *Config) Normalize() error {
 	c.ListenResolved = c.Listen
 	if c.ListenResolved == "" {
-		c.ListenResolved = ":8788"
+		c.ListenResolved = ":8780"
 	}
 
 	var err error
