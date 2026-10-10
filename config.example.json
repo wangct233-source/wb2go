@@ -1,5 +1,5 @@
 {
-  "listen": ":8788",
+  "listen": ":8780",
   "api_key": "",
   "auth_dir": "./accounts",
   "state_file": "./data/state.json",
