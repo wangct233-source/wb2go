@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -267,7 +268,11 @@ func recovery(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if e := recover(); e != nil {
-				log.Printf("处理 %s %s 时 panic: %v", r.Method, r.URL.Path, e)
+				// panic 日志必须带堆栈：只有一行 error 的话，
+				// 用户报障时我们只能靠猜 —— 这次的 nil pointer
+				// 就是白白多花一小时定位。
+				log.Printf("处理 %s %s 时 panic: %v\n%s",
+					r.Method, r.URL.Path, e, debug.Stack())
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
 				w.WriteHeader(http.StatusInternalServerError)
 				_ = json.NewEncoder(w).Encode(map[string]any{

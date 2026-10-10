@@ -362,6 +362,10 @@ func NewAggregator() *Aggregator {
 	return &Aggregator{toolCalls: map[int]*aggTool{}}
 }
 
+// Usage 返回流中最后一帧携带的 token 用量。
+// 上游只在流末尾发 usage 帧；没有则为 nil。
+func (a *Aggregator) Usage() *Usage { return a.usage }
+
 // Add 累加一帧。
 func (a *Aggregator) Add(ch *ChatChunk) {
 	if ch.Usage != nil {

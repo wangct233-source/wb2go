@@ -221,11 +221,15 @@ func (h *Handler) dispatchChat(w http.ResponseWriter, r *http.Request, in map[st
 			rec.UID = ent.UID
 			rec.Status = res.status
 			rec.Outcome = "completed"
-			rec.PromptTok = res.usage.PromptTokens
-			rec.CompletionTok = res.usage.CompletionTokens
-			rec.CachedTok = res.usage.CachedTokens
-			rec.ReasoningTok = res.usage.ReasoningTokens
-			rec.TotalTok = res.usage.TotalTokens
+			// 流式响应的 usage 只在流结束后才可知，此时为 nil —— 必须判空。
+			// 非流式由 aggregate 回填。这里曾经直接解引用导致必炸 panic。
+			if res.usage != nil {
+				rec.PromptTok = res.usage.PromptTokens
+				rec.CompletionTok = res.usage.CompletionTokens
+				rec.CachedTok = res.usage.CachedTokens
+				rec.ReasoningTok = res.usage.ReasoningTokens
+				rec.TotalTok = res.usage.TotalTokens
+			}
 			rec.TTFBms = ttfb
 			rec.Durationms = time.Since(started).Milliseconds()
 			rec.Identity = cred.Identity
@@ -496,8 +500,14 @@ func (h *Handler) aggregate(_ context.Context, resp *http.Response, model string
 		}
 		agg.Add(ch)
 	}
+	// usage 必须随 result 带回：dispatchChat 的记账要读它。
+	// 曾经漏传导致 attemptResult.usage 恒为 nil，而成功分支直接解引用
+	// res.usage.PromptTokens —— 每一个成功的聊天请求都会 nil panic。
+	// 这是一个上线两天才被用户抓到的必炸 bug，因为测试期间从没有
+	// 账号能发出一次真实请求。
 	return &attemptResult{
 		status: http.StatusOK,
+		usage:  agg.Usage(),
 		write: func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.WriteHeader(http.StatusOK)
